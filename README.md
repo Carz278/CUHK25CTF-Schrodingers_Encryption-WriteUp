@@ -50,69 +50,179 @@ A simple helper class to simulate the conversation with timed delays.
 
 ---
 
-## 3. Vulnerability: Probabilistic Bit Recovery
+## 3. Vulnerability: Statistical Analysis of Bitwise Operations
 
-The security of this system relies on the attacker not knowing whether AND or OR was used for each bit. However, we can exploit the statistical properties of these operations.
+The cryptographic weakness stems from the probabilistic nature of the encryption scheme. By analyzing the statistical distribution of ciphertext bits, we can deduce the original flag bits.
 
-Let's consider a single bit position `i` in the flag (`f_i`), the key (`k_i`), and the resulting ciphertext bit (`c_i`).
+### 3.1 Bitwise Operation Analysis
 
-- If the operation is **AND**:
-  - `c_i = f_i AND k_i`
-  - If `f_i = 0`, then `c_i` is always `0`.
-  - If `f_i = 1`, then `c_i = k_i` (so it's `1` with 50% probability and `0` with 50% probability).
+For each bit position `i` in the flag (`f_i`), key (`k_i`), and ciphertext (`c_i`):
 
-- If the operation is **OR**:
-  - `c_i = f_i OR k_i`
-  - If `f_i = 0`, then `c_i = k_i` (so it's `1` with 50% probability and `0` with 50% probability).
-  - If `f_i = 1`, then `c_i` is always `1`.
+#### AND Operation (`c_i = f_i AND k_i`)
+- **If `f_i = 0`**: `c_i = 0` (always)
+- **If `f_i = 1`**: `c_i = k_i` (50% probability of being 1)
 
-Now, let's analyze the probability that `c_i = 1` given `f_i`:
+#### OR Operation (`c_i = f_i OR k_i`)
+- **If `f_i = 0`**: `c_i = k_i` (50% probability of being 1)
+- **If `f_i = 1`**: `c_i = 1` (always)
 
-| Flag Bit `f_i` | `Pr(c_i = 1 | AND)` | `Pr(c_i = 1 | OR)` | Overall `Pr(c_i = 1)` |
-|----------------|------------------------|----------------------|-------------------------|
-| 0              | 0%                     | 50%                  | 25%                     |
-| 1              | 50%                    | 100%                 | 75%                     |
+### 3.2 Probability Distribution
 
-Since the encryption randomly chooses between AND and OR with equal probability, the overall probability that a ciphertext bit is `1` is:
+| Flag Bit (`f_i`) | Pr(c_i = 1 \| AND) | Pr(c_i = 1 \| OR) | Overall Pr(c_i = 1) |
+|------------------|--------------------|-------------------|---------------------|
+| 0                | 0%                 | 50%               | 25%                 |
+| 1                | 50%                | 100%              | 75%                 |
 
-- **25%** if the flag bit is `0`
-- **75%** if the flag bit is `1`
+Since the encryption randomly selects between AND and OR operations with equal probability, the overall probability distribution reveals:
 
-Therefore, by collecting enough ciphertexts and counting the frequency of `1`s at each bit position, we can determine the original flag bits:
+- **Flag bit = 0**: 25% probability of ciphertext bit being 1
+- **Flag bit = 1**: 75% probability of ciphertext bit being 1
 
-- If the frequency is close to **25%**, the flag bit is `0`.
-- If the frequency is close to **75%**, the flag bit is `1`.
+This statistical bias enables us to recover the original flag bits by analyzing the frequency of 1s across multiple ciphertext samples.
 
 ---
 
-## 4. The Exploit
+## 4. Exploitation Strategy
 
-The solution involves:
+The attack methodology involves:
 
-1. **Connecting to the server** and triggering the encryption loop.
-2. **Collecting a large number of ciphertexts** (hex strings) by sending incorrect guesses.
-3. **Converting each hex string** to a bytes object.
-4. **For each bit position in the flag**:
-   - Count how many ciphertexts have a `1` at that position.
-   - Calculate the frequency of `1`s.
-   - If the frequency is above 50%, set the flag bit to `1`; otherwise, set it to `0`.
-5. **Assemble the recovered bits** into the flag string and submit it.
+1. **Establish Connection**: Connect to the challenge server
+2. **Data Collection**: Gather multiple ciphertext samples by submitting incorrect flag guesses
+3. **Bit Frequency Analysis**: For each bit position:
+   - Count occurrences of 1 across all samples
+   - Calculate frequency percentage
+   - Classify flag bit based on statistical threshold (50%)
+4. **Flag Reconstruction**: Assemble recovered bits into the complete flag
+5. **Flag Submission**: Submit the reconstructed flag to the server
 
 ---
 
-## 5. Solution Script
+## 5. Solution Implementation
 
-The provided `solve.py` implements this attack:
+The `solve.py` script executes the following attack workflow:
 
-- **Socket Connection**: Connects to the challenge server.
-- **Data Collection**: Reads the initial ciphertext and then collects hundreds more by sending dummy answers.
-- **Statistical Analysis**:
-  - For each byte position and each bit within that byte, it calculates the frequency of `1`s across all samples.
-  - Bits with high frequency (>50%) are set to `1` in the flag.
-- **Flag Submission**: Sends the recovered flag to the server.
+- **Network Communication**: Establishes TCP connection to the challenge server
+- **Sample Collection**: Accumulates ciphertext samples through iterative incorrect submissions
+- **Statistical Processing**: 
+  - Converts hex ciphertexts to binary representation
+  - Computes bit-wise frequency distributions
+  - Applies threshold classification for bit recovery
+- **Result Validation**: Submits the reconstructed flag for verification
 
+### Solve.py
+- **python**
+```
+import socket
+import binascii
+import time
+import re
+
+def solve():
+    s = socket.socket()
+    s.connect(('chall.25.cuhkctf.org', 25060))
+    
+    samples = []
+    
+    # 接收初始数据
+    data = b""
+    while True:
+        chunk = s.recv(1024)
+        data += chunk
+        if b'0x' in data and b'Now tell me the flag' in data:
+            break
+    
+    # 提取第一个加密数据
+    text = data.decode('latin-1', errors='ignore')
+    hex_match = re.search(r'0x([0-9a-f]+)', text)
+    if hex_match:
+        hex_str = hex_match.group(1)
+        try:
+            encrypted = binascii.unhexlify(hex_str)
+            samples.append(encrypted)
+            print(f"Sample 1: {len(encrypted)} bytes")
+        except:
+            pass
+    
+    # 收集更多样本
+    for i in range(300):  # 大量样本
+        try:
+            s.send(b"dummy\n")
+            time.sleep(0.1)
+            data = s.recv(4096)
+            text = data.decode('latin-1', errors='ignore')
+            hex_matches = re.findall(r'0x([0-9a-f]+)', text)
+            for hex_str in hex_matches:
+                try:
+                    if len(hex_str) % 2 == 0:
+                        encrypted = binascii.unhexlify(hex_str)
+                        samples.append(encrypted)
+                        if len(samples) % 50 == 0:
+                            print(f"Sample {len(samples)} collected")
+                except:
+                    continue
+        except:
+            continue
+        
+        if len(samples) >= 300:
+            break
+    
+    print(f"Collected {len(samples)} samples")
+    
+    if not samples:
+        print("No samples collected")
+        return
+    
+    flag_len = min(len(s) for s in samples)
+    print(f"Flag length: {flag_len}")
+    
+    samples = [s[:flag_len] for s in samples]
+    
+    # 统计方法
+    flag_bytes = bytearray(flag_len)
+    for byte_idx in range(flag_len):
+        for bit_idx in range(8):
+            bit_pos = 7 - bit_idx
+            
+            # 计算该位为1的频率
+            count_ones = 0
+            for sample in samples:
+                bit = (sample[byte_idx] >> bit_pos) & 1
+                if bit == 1:
+                    count_ones += 1
+            
+            freq = count_ones / len(samples)
+            
+            # 根据频率判断
+            if freq > 0.5:  # 更可能f=1
+                flag_bytes[byte_idx] |= (1 << bit_pos)
+            # 否则保持0（更可能f=0）
+    
+    flag = flag_bytes.decode('ascii', errors='ignore')
+    print("Recovered flag:", repr(flag))
+    
+    # 提交答案
+    s.send(flag_bytes + b"\n")
+    time.sleep(1)
+    try:
+        response = s.recv(4096)
+        print(response.decode())
+    except:
+        print("No response")
+
+if __name__ == '__main__':
+    solve()
+
+```
+
+### Execution Output
 **Output:**
-
+```
+Sample 1: 96 bytes
+Sample 50 collected
+Collected 73 samples
+Flag length: 96
+Recovered flag: cuhk25ctf{br34kin_schr0d1ng3r5_cORt_wIth_mu1t1p1e_ANDcryptions_aeb5914d8af2cb1655ecbc07c1cd71f6}
+```
 
 ---
 
