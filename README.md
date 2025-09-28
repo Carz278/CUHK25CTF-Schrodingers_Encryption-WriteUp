@@ -4,7 +4,7 @@
 **Title:** Schrödinger's Encryption  
 **Author:** chemistrying ★★☆☆  
 **Description:** *"It's the duality of encryption - the safety and security."*  
-`nc chall.25.cuhkctf.org 25060`
+**Connection:** `nc chall.25.cuhkctf.org 25060`
 
 ---
 
