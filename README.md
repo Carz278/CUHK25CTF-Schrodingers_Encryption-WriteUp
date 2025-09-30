@@ -1,4 +1,6 @@
 # CTF Write-Up: Schrödinger's Encryption
+**Team:** `S006 - Destroy Lai Lai's Machine`
+**Author:** `Carz`
 
 **Type:** Cryptography  
 **Title:** Schrödinger's Encryption  
