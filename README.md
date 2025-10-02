@@ -3,7 +3,8 @@
 
 **Type:** Cryptography  
 **Title:** Schrödinger's Encryption  
-**Author:** chemistrying ★★☆☆  
+**Author:** chemistrying   
+**Difficulty:** ★★☆☆  
 **Description:** *"It's the duality of encryption - the safety and security."*  
 **Connection:** `nc chall.25.cuhkctf.org 25060`
 
