@@ -112,8 +112,7 @@ The `solve.py` script executes the following attack workflow:
 - **Result Validation**: Submits the reconstructed flag for verification
 
 ### Solve.py
-- **python**
-```
+```py
 import socket
 import binascii
 import time
